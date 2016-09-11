@@ -76,6 +76,8 @@ var SignaturePad = (function (document) {
         ctx.fillStyle = this.backgroundColor;
         ctx.clearRect(0, 0, canvas.width, canvas.height);
         ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+        this._data = [];
         this._reset();
     };
 
@@ -99,11 +101,6 @@ var SignaturePad = (function (document) {
         this._isEmpty = false;
     };
 
-    SignaturePad.prototype._strokeUpdate = function (event) {
-        var point = this._createPoint(event);
-        this._addPoint(point);
-    };
-
     SignaturePad.prototype._strokeBegin = function (event) {
         this._reset();
         this._strokeUpdate(event);
@@ -112,23 +109,26 @@ var SignaturePad = (function (document) {
         }
     };
 
-    SignaturePad.prototype._strokeDraw = function (point) {
-        var ctx = this._ctx,
-            dotSize = typeof(this.dotSize) === 'function' ? this.dotSize() : this.dotSize;
+    SignaturePad.prototype._strokeUpdate = function (event) {
+        var point = this._createPoint(event);
+        var curve = this._addPoint(point);
 
-        ctx.beginPath();
-        this._drawPoint(point.x, point.y, dotSize);
-        ctx.closePath();
-        ctx.fill();
+        if (curve) {
+          this._data.push({ type: 'curve', data: curve });
+        }
     };
 
     SignaturePad.prototype._strokeEnd = function (event) {
         var canDrawCurve = this.points.length > 2,
-            point = this.points[0];
+            point = this.points[0],
+            dotSize, pointWithWidth;
 
         if (!canDrawCurve && point) {
-            this._strokeDraw(point);
+            point.width = typeof(this.dotSize) === 'function' ? this.dotSize() : this.dotSize;
+            this._drawDot(point);
+            this._data.push({ type: 'point', data: point });
         }
+
         if (typeof this.onEnd === 'function') {
             this.onEnd(event);
         }
@@ -190,7 +190,8 @@ var SignaturePad = (function (document) {
     SignaturePad.prototype._addPoint = function (point) {
         var points = this.points,
             c2, c3,
-            curve, tmp;
+            curve, curveWithWidth,
+            tmp;
 
         points.push(point);
 
@@ -204,12 +205,14 @@ var SignaturePad = (function (document) {
             tmp = this._calculateCurveControlPoints(points[1], points[2], points[3]);
             c3 = tmp.c1;
             curve = new Bezier(points[1], c2, c3, points[2]);
-            this._addCurve(curve);
+            curveWithWidth = this._addCurve(curve);
 
             // Remove the first element from the list,
             // so that we always have no more than 4 points in points array.
             points.shift();
         }
+
+        return curveWithWidth;
     };
 
     SignaturePad.prototype._calculateCurveControlPoints = function (s1, s2, s3) {
@@ -249,24 +252,21 @@ var SignaturePad = (function (document) {
         newWidth = this._strokeWidth(velocity);
         this._drawCurve(curve, this._lastWidth, newWidth);
 
+        curve.beginWidth = this._lastWidth;
+        curve.endWidth = newWidth;
+
         this._lastVelocity = velocity;
         this._lastWidth = newWidth;
-    };
 
-    SignaturePad.prototype._drawPoint = function (x, y, size) {
-        var ctx = this._ctx;
-
-        ctx.moveTo(x, y);
-        ctx.arc(x, y, size, 0, 2 * Math.PI, false);
-        this._isEmpty = false;
+        return curve;
     };
 
     SignaturePad.prototype._drawCurve = function (curve, startWidth, endWidth) {
         var ctx = this._ctx,
             widthDelta = endWidth - startWidth,
-            drawSteps, width, i, t, tt, ttt, u, uu, uuu, x, y;
+            drawSteps = Math.floor(curve.length()),
+            width, i, t, tt, ttt, u, uu, uuu, x, y;
 
-        drawSteps = Math.floor(curve.length());
         ctx.beginPath();
         for (i = 0; i < drawSteps; i++) {
             // Calculate the Bezier (x, y) coordinate for this step.
@@ -292,6 +292,23 @@ var SignaturePad = (function (document) {
         }
         ctx.closePath();
         ctx.fill();
+    };
+
+    SignaturePad.prototype._drawDot = function (point) {
+        var ctx = this._ctx;
+
+        ctx.beginPath();
+        this._drawPoint(point.x, point.y, point.width);
+        ctx.closePath();
+        ctx.fill();
+    };
+
+    SignaturePad.prototype._drawPoint = function (x, y, size) {
+        var ctx = this._ctx;
+
+        ctx.moveTo(x, y);
+        ctx.arc(x, y, size, 0, 2 * Math.PI, false);
+        this._isEmpty = false;
     };
 
     SignaturePad.prototype._strokeWidth = function (velocity) {
