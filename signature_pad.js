@@ -31,7 +31,7 @@
  * http://www.lemoda.net/maths/bezier-length/index.html
  *
  */
-var SignaturePad = (function (document) {
+var SignaturePad = window ? (function (document) {
     "use strict";
 
     var SignaturePad = function (canvas, options) {
@@ -382,7 +382,7 @@ var SignaturePad = (function (document) {
     };
 
     return SignaturePad;
-})(document);
+})(document) : null;
 
 return SignaturePad;
 
