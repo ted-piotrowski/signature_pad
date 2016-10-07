@@ -1,4 +1,4 @@
-var SignaturePad = (function (document) {
+var SignaturePad = (typeof window !== 'undefined') ? (function (document) {
     "use strict";
 
     var SignaturePad = function (canvas, options) {
@@ -20,6 +20,12 @@ var SignaturePad = (function (document) {
         this._ctx = canvas.getContext("2d");
         this.clear();
 
+        this._triggerSignedEvent = function () {
+            var event = document.createEvent("HTMLEvents");
+            event.initEvent("signed", true, true);
+            this._canvas.dispatchEvent(event);
+        };
+
         // we need add these inline so they are available to unbind while still having
         //  access to 'self' we could use _.bind but it's not worth adding a dependency
         this._handleMouseDown = function (event) {
@@ -39,6 +45,7 @@ var SignaturePad = (function (document) {
             if (event.which === 1 && self._mouseButtonDown) {
                 self._mouseButtonDown = false;
                 self._strokeEnd(event);
+                self._triggerSignedEvent();
             }
         };
 
@@ -62,6 +69,7 @@ var SignaturePad = (function (document) {
             if (wasCanvasTouched) {
                 event.preventDefault();
                 self._strokeEnd(event);
+                self._triggerSignedEvent();
             }
         };
 
@@ -349,4 +357,4 @@ var SignaturePad = (function (document) {
     };
 
     return SignaturePad;
-})(document);
+})(document) : null;
